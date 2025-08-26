@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Tu Rastro Digital</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.min.js"></script>
+    <style>
+        :root {
+            --color-dispositivo: #00ff88;
+            --color-conexion: #4ecdc4;
+            --color-almacenamiento: #ffd700;
+            --color-rastreo: #ff6b6b;
+            --color-ubicacion: #dda0dd;
+            --color-navegador: #98fb98;
+            --color-fondo: #0a0a0a;
+            --color-texto-principal: #eee;
+            --color-texto-secundario: #aaa;
+            --whatsapp-green: #25d366;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: var(--color-fondo);
+            font-family: "Courier New", monospace;
+            overflow: hidden;
+            display: flex;
+        }
+
+        #info-panel {
+            width: 300px;
+            height: 100vh;
+            background: rgba(15, 15, 20, 0.95);
+            border-right: 1px solid var(--color-dispositivo);
+            padding: 3.7rem 15px 15px;
+            font-size: 16px;
+            z-index: 100;
+            overflow-y: auto;
+            color: var(--color-texto-secundario);
+            transition: transform 0.4s ease-in-out;
+            box-sizing: border-box;
+            flex-shrink: 0;
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--color-dispositivo);
+            padding-bottom: 8px;
+            color: var(--color-dispositivo);
+        }
+
+        .category-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 20px;
+            margin-bottom: 8px;
+            color: #fff;
+            border-bottom: 1px solid #555;
+            padding-bottom: 4px;
+        }
+
+        .data-item {
+            margin: 5px 0;
+            word-wrap: break-word;
+            line-height: 1.4;
+        }
+
+        .data-label {
+            font-size: 16px;
+        }
+
+        .data-value {
+            font-weight: bold;
+            color: var(--color-texto-principal);
+        }
+
+        .warning {
+            color: #ff4444;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        .whatsapp-share-button {
+            display: block;
+            margin-top: 20px;
+            padding: 10px 15px;
+            background-color: var(--whatsapp-green);
+            color: white;
+            text-align: center;
+            border-radius: 5px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 16px;
+            transition: background-color 0.2s;
+        }
+
+        .whatsapp-share-button:hover {
+            background-color: #128c7e;
+        }
+
+        #panel-toggle {
+            display: none;
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 101;
+            background: rgba(0, 255, 136, 0.9);
+            color: var(--color-fondo);
+            border: none;
+            padding: 8px 12px;
+            font-size: 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        main {
+            flex-grow: 1;
+            height: 100vh;
+            position: relative;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+
+            #info-panel {
+                position: fixed;
+                transform: translateX(-100%);
+                width: 90vw;
+            }
+
+            #info-panel.is-open {
+                transform: translateX(0);
+            }
+
+            #panel-toggle {
+                display: block;
+            }
+
+            main {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <button id="panel-toggle">☰</button>
+    <div id="info-panel">
+        <div class="panel-title">Tu Rastro Digital</div>
+        <div class="panel-content" id="panel-data-content">Analizando...</div>
+
+        <div class="category-title" style="margin-top: 30px;">⚠️</div>
+        <div class="data-item warning">Tu dispositivo es único e identificable.</div>
+        <div class="data-item" style="color: #aaa;">Cada visita web deja rastros digitales permanentes.</div>
+
+        <a id="whatsapp-share" class="whatsapp-share-button" href="#" target="_blank" rel="noopener noreferrer">
+            Compartir en WhatsApp
+        </a>
+    </div>
+
+    <main id="main-content">
+        <div id="canvas-container"></div>
+    </main>
+
+    <script>
+        const digitalIdentity = {};
+        let particles = [];
+        let mainParticle;
+        let dataReady = false;
+        let deviceIcon = '❓';
+        let currentBgColor;
+        const nightColor = [10, 10, 15], sunriseColor = [45, 20, 40], dayColor = [20, 40, 70], sunsetColor = [70, 30, 40];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            function getDeviceType() { if (/Mobi|Android/i.test(navigator.userAgent)) return '📱'; return '💻'; }
+            function setupShareButton() { const s = document.getElementById('whatsapp-share'), u = window.location.href, t = `Descubre tu rastro digital y cómo te ven en la web: ${u}`; s.href = `https://api.whatsapp.com/send?text=${encodeURIComponent(t)}`; }
+            async function gatherDigitalIdentity() {
+                try {
+                    deviceIcon = getDeviceType();
+                    let visitCount = parseInt(localStorage.getItem('visitCount') || 0) + 1; localStorage.setItem('visitCount', visitCount);
+                    digitalIdentity.visitCount = { value: visitCount, label: 'Visitas', category: 'rastreo' };
+                    const fp = generateFingerprint();
+                    digitalIdentity.fingerprint = { value: fp.substring(0, 16) + '...', label: 'Huella Digital', category: 'rastreo' };
+                    digitalIdentity.doNotTrack = { value: (navigator.doNotTrack || 'N/A'), label: '"No Rastrear"', category: 'rastreo' };
+                    digitalIdentity.deviceType = { value: deviceIcon === '💻' ? 'Escritorio' : 'Móvil', label: 'Tipo Dispositivo', category: 'dispositivo' };
+                    digitalIdentity.platform = { value: navigator.platform, label: 'Plataforma', category: 'dispositivo' };
+                    digitalIdentity.screenResolution = { value: `${screen.width}x${screen.height}`, label: 'Resolución', category: 'dispositivo' };
+                    digitalIdentity.hardwareConcurrency = { value: navigator.hardwareConcurrency + ' núcleos', label: 'Núcleos CPU', category: 'dispositivo' };
+                    digitalIdentity.deviceMemory = { value: (navigator.deviceMemory ? navigator.deviceMemory + ' GB' : 'N/A'), label: 'Memoria RAM', category: 'dispositivo' };
+                    digitalIdentity.language = { value: navigator.language, label: 'Idioma', category: 'navegador' };
+                    digitalIdentity.cookiesEnabled = { value: (navigator.cookieEnabled ? 'Sí' : 'No'), label: 'Cookies', category: 'almacenamiento' };
+                    digitalIdentity.localStorage = { value: (typeof (Storage) !== "undefined" ? 'Sí' : 'No'), label: 'Local Storage', category: 'almacenamiento' };
+                    try {
+                        const r = await fetch('https://api.ipify.org?format=json'), d = await r.json();
+                        digitalIdentity.publicIP = { value: d.ip, label: 'IP Pública', category: 'conexion' };
+                        const gr = await fetch(`https://ipapi.co/${d.ip}/json/`), gd = await gr.json();
+                        digitalIdentity.country = { value: gd.country_name || 'N/A', label: 'País', category: 'conexion' };
+                        digitalIdentity.city = { value: gd.city || 'N/A', label: 'Ciudad', category: 'conexion' };
+                        digitalIdentity.isp = { value: gd.org || 'N/A', label: 'Proveedor Internet', category: 'conexion' };
+                        digitalIdentity.timezone = { value: gd.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone, label: 'Zona Horaria', category: 'ubicacion' };
+                        if (gd.latitude && gd.longitude) {
+                            const wr = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${gd.latitude}&longitude=${gd.longitude}&current_weather=true`), wd = await wr.json();
+                            digitalIdentity.temperature = { value: `${wd.current_weather.temperature}°C`, label: 'Temperatura', category: 'ubicacion' };
+                            digitalIdentity.weather_code = { value: getWeatherDescription(wd.current_weather.weathercode), label: 'Clima', category: 'ubicacion' };
+                        }
+                    } catch (e) { digitalIdentity.publicIP = { value: 'N/A', label: 'IP Pública', category: 'conexion' }; digitalIdentity.timezone = { value: Intl.DateTimeFormat().resolvedOptions().timeZone, label: 'Zona Horaria', category: 'ubicacion' }; }
+                    updateInfoPanel(); dataReady = true;
+                } catch (e) { console.error('Error:', e); }
+            }
+            function getWeatherDescription(c) { const d = { 0: "Despejado", 1: "P. Despejado", 2: "P. Nublado", 3: "Nublado", 45: "Niebla", 61: "Lluvia Ligera", 63: "Lluvia", 65: "Lluvia Fuerte", 80: "Chubascos", 95: "Tormenta" }; return d[c] || "N/A"; }
+            function generateFingerprint() { const d = [navigator.userAgent, navigator.language, `${screen.width}x${screen.height}`, new Date().getTimezoneOffset(), navigator.platform, navigator.hardwareConcurrency].join('|'); let h = 0; for (let i = 0; i < d.length; i++) { const c = d.charCodeAt(i); h = ((h << 5) - h) + c; h &= h; } return h.toString(16); }
+            function updateInfoPanel() {
+                const p = document.getElementById('panel-data-content'); p.innerHTML = ''; const g = {}; for (const k in digitalIdentity) { const i = digitalIdentity[k]; if (!g[i.category]) g[i.category] = []; g[i.category].push(i); }
+                const o = ['conexion', 'dispositivo', 'ubicacion', 'rastreo', 'almacenamiento', 'navegador'];
+                for (const c of o) { if (g[c]) { const t = document.createElement('div'); t.className = 'category-title'; t.textContent = c.toUpperCase(); p.appendChild(t); g[c].forEach(i => { const d = document.createElement('div'); d.className = 'data-item'; let v = (i.label.includes('IP') || i.label.includes('Huella') || i.label.includes('Visitas')) ? 'warning' : ''; d.innerHTML = `<span class="data-label">${i.label}:</span> <span class="data-value ${v}">${i.value}</span>`; p.appendChild(d); }); } }
+            }
+            gatherDigitalIdentity(); setupShareButton();
+            const panel = document.getElementById('info-panel'); const toggleBtn = document.getElementById('panel-toggle');
+
+            // --- LÓGICA DEL BOTÓN MODIFICADA ---
+            toggleBtn.addEventListener('click', () => {
+                panel.classList.toggle('is-open');
+                // Comprobar si el panel está abierto para cambiar el icono
+                if (panel.classList.contains('is-open')) {
+                    toggleBtn.textContent = '✕'; // Icono de cerrar
+                } else {
+                    toggleBtn.textContent = '☰'; // Icono de menú
+                }
+            });
+        });
+
+        // --- Lógica de p5.js para la Simulación ---
+
+        class Particle {
+            constructor(x, y, mass, label, value, category, icon = null) {
+                this.position = createVector(x, y); this.velocity = p5.Vector.random2D().mult(random(0.3, 0.8));
+                this.mass = mass; this.radius = sqrt(this.mass) * 1.5;
+                this.label = label; this.value = value; this.category = category;
+                this.color = getCategoryColor(category); this.icon = icon;
+                if (this.label === "TÚ") {
+                    this.velocity.mult(0);
+                    this.pulseAngle = random(TWO_PI);
+                }
+                if (this.label !== "TÚ") {
+                    this.waveAmplitude = random(5, 20); this.waveFrequency = random(0.03, 0.08);
+                    this.waveSpeed = random(0.02, 0.05); this.wavePhase = random(TWO_PI);
+                }
+            }
+            update() {
+                this.position.add(this.velocity);
+                if (this.label === "TÚ") { this.pulseAngle += 0.03; }
+            }
+            display() {
+                noStroke(); fill(this.color);
+                if (this.label === "TÚ") {
+                    let pulseFactor = 1 + sin(this.pulseAngle) * 0.05;
+                    let currentRadius = this.radius * pulseFactor;
+                    ellipse(this.position.x, this.position.y, currentRadius * 2);
+                    if (this.icon) {
+                        textAlign(CENTER, CENTER);
+                        textSize(currentRadius * 0.9);
+                        text(this.icon, this.position.x, this.position.y);
+                    }
+                } else {
+                    ellipse(this.position.x, this.position.y, this.radius * 2);
+                    textAlign(CENTER, CENTER);
+                    fill(200, 220); textSize(10); text(this.label, this.position.x, this.position.y + this.radius + 8);
+                    fill(238, 240); textSize(11); textStyle(BOLD); text(this.value, this.position.x, this.position.y + this.radius + 22);
+                    textStyle(NORMAL);
+                }
+            }
+            checkEdges() {
+                if (this.position.x > width - this.radius || this.position.x < this.radius) this.velocity.x *= -1;
+                if (this.position.y > height - this.radius || this.position.y < this.radius) this.velocity.y *= -1;
+            }
+        }
+
+        function setup() {
+            const canvasContainer = document.getElementById('canvas-container');
+            const canvas = createCanvas(canvasContainer.offsetWidth, canvasContainer.offsetHeight);
+            canvas.parent('canvas-container');
+            currentBgColor = color(nightColor[0], nightColor[1], nightColor[2]);
+        }
+
+        function draw() {
+            updateBackgroundColor(); background(currentBgColor);
+            if (dataReady && particles.length === 0) createParticles();
+            if (!mainParticle) {
+                fill(200); noStroke(); textAlign(CENTER, CENTER); textSize(16);
+                text('Analizando tu rastro digital...', width / 2, height / 2);
+                return;
+            }
+            for (let p of particles) { if (p !== mainParticle) { drawWavyLine(mainParticle, p); } }
+            for (let p of particles) { p.update(); p.checkEdges(); p.display(); }
+        }
+
+        function drawWavyLine(p1, p2) {
+            let startPos = p1.position; let endPos = p2.position;
+            let distance = p5.Vector.dist(startPos, endPos);
+            let numSegments = constrain(floor(distance / 8), 10, 60);
+            let lineVector = p5.Vector.sub(endPos, startPos);
+            let perpendicular = createVector(-lineVector.y, lineVector.x).normalize();
+            let c = p2.color; c.setAlpha(100);
+            stroke(c); strokeWeight(1.5); noFill();
+            beginShape();
+            for (let i = 0; i <= numSegments; i++) {
+                let t = i / numSegments;
+                let straightPoint = p5.Vector.lerp(startPos, endPos, t);
+                let baseWave = sin(t * distance * p2.waveFrequency + frameCount * p2.waveSpeed + p2.wavePhase);
+                let envelope = sin(t * PI);
+                let waveOffset = baseWave * p2.waveAmplitude * envelope;
+                let wavyPoint = p5.Vector.add(straightPoint, p5.Vector.mult(perpendicular, waveOffset));
+                vertex(wavyPoint.x, wavyPoint.y);
+            }
+            endShape();
+        }
+
+        function windowResized() {
+            const canvasContainer = document.getElementById('canvas-container');
+            resizeCanvas(canvasContainer.offsetWidth, canvasContainer.offsetHeight);
+            if (mainParticle) mainParticle.position.set(width / 2, height / 2);
+        }
+
+        function createParticles() {
+            mainParticle = new Particle(width / 2, height / 2, 350, "TÚ", "", "main", deviceIcon);
+            particles.push(mainParticle);
+            for (const key in digitalIdentity) {
+                const item = digitalIdentity[key]; let x = random(width * 0.1, width * 0.9); let y = random(height * 0.1, height * 0.9);
+                let mass = 15; let displayValue = String(item.value);
+                if (key === 'isp' && displayValue.length > 25) displayValue = displayValue.substring(0, 22) + '...';
+                if (key === 'timezone' && displayValue.includes('/')) displayValue = displayValue.split('/')[1].replace(/_/g, ' ');
+                particles.push(new Particle(x, y, mass, item.label, displayValue, item.category));
+            }
+        }
+
+        function updateBackgroundColor() {
+            const now = new Date(); const hour = now.getHours(); const minute = now.getMinutes();
+            const timeValue = hour + minute / 60;
+            let fromColor, toColor, lerpAmount;
+            const sunriseStart = 5, sunriseEnd = 8, dayStart = 8, dayEnd = 18, sunsetStart = 18, sunsetEnd = 21;
+            if (timeValue >= sunriseStart && timeValue < sunriseEnd) {
+                fromColor = color(sunriseColor); toColor = color(dayColor); lerpAmount = map(timeValue, sunriseStart, sunriseEnd, 0, 1);
+            } else if (timeValue >= dayStart && timeValue < dayEnd) {
+                fromColor = color(dayColor); toColor = color(sunsetColor); lerpAmount = map(timeValue, dayStart, dayEnd, 0, 1);
+            } else if (timeValue >= sunsetStart && timeValue < sunsetEnd) {
+                fromColor = color(sunsetColor); toColor = color(nightColor); lerpAmount = map(timeValue, sunsetStart, sunsetEnd, 0, 1);
+            } else {
+                fromColor = color(nightColor); toColor = color(sunriseColor);
+                if (timeValue >= sunsetEnd) { lerpAmount = map(timeValue, sunsetEnd, 24, 0, 0.5); }
+                else { lerpAmount = map(timeValue, 0, sunriseStart, 0.5, 1); }
+            }
+            let targetColor = lerpColor(fromColor, toColor, lerpAmount);
+            currentBgColor = lerpColor(currentBgColor, targetColor, 0.02);
+        }
+
+        function getCategoryColor(category) {
+            switch (category) {
+                case 'dispositivo': return color('#00ff88'); case 'conexion': return color('#4ecdc4');
+                case 'almacenamiento': return color('#ffd700'); case 'rastreo': return color('#ff6b6b');
+                case 'ubicacion': return color('#dda0dd'); case 'navegador': return color('#98fb98');
+                case 'main': return color(255, 255, 255, 240); default: return color(200);
+            }
+        }
+    </script>
+</body>
+
+</html>
